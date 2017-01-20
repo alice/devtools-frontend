@@ -80,7 +80,7 @@ span.ax-internal-role {
     left: -2px;
 }
 
-.tree-outline li.selected .selection {
+.tree-outline li.inspected .selection {
     background-color: inherit;
 }
 
@@ -162,6 +162,40 @@ li .inspect-dom-node {
     top: 2px;
 }
 
-.tree-outline:focus li.selected .inspect-dom-node {
+.tree-outline:focus li.inspected .inspect-dom-node {
     background-color: white;
+}
+
+.tree-outline:focus li.hovered:not(.inspected) .selection,
+.tree-outline:focus li.preselected:not(.inspected) .selection {
+    display: block;
+    left: 3px;
+    right: 3px;
+    border-radius: 5px;
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+.tree-outline:focus li.hovered.dom-node:not(.inspected) .selection,
+.tree-outline:focus li.preselected.dom-node:not(.inspected) .selection {
+    background-color: rgba(56, 121, 217, 0.1);
+}
+
+.tree-outline li.preselected:not(.inspected) .selection {
+    display: none;
+}
+
+ol.tree-outline:not(:focus) li.inspected .selection {
+    display: block;
+    background-color: #ddd;
+    border-radius: 0;
+}
+
+ol.tree-outline:focus li.inspected .selection {
+    display: block;
+    background-color: rgb(56, 121, 217);
+    border-radius: 0;
+}
+
+ol.tree-outline:focus li.inspected {
+    color: white;
 }

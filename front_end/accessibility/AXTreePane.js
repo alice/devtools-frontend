@@ -12,7 +12,9 @@ Accessibility.AXTreePane = class extends Accessibility.AccessibilitySubPane {
     super(Common.UIString('Accessibility Tree'));
 
     this._axSidebarView = axSidebarView;
-    this._treeOutline = this.createTreeOutline();
+    this._treeOutline = new Accessibility.AXTreeOutline(this);
+    this._treeOutline.setPaddingSize(12);
+    this.element.appendChild(this._treeOutline.element);
 
     this.element.classList.add('accessibility-computed');
 
@@ -33,9 +35,8 @@ Accessibility.AXTreePane = class extends Accessibility.AccessibilitySubPane {
     if (!axNode)
       return;
 
-    treeOutline.element.classList.remove('hidden');
     var previousTreeElement = treeOutline.rootElement();
-    var inspectedNodeTreeElement = new Accessibility.AXNodeTreeElement(axNode, this);
+    var inspectedNodeTreeElement = new Accessibility.AXNodeTreeElement(axNode, treeOutline);
     inspectedNodeTreeElement.setInspected(true);
 
     var parent = axNode.parentNode();
@@ -49,17 +50,19 @@ Accessibility.AXTreePane = class extends Accessibility.AccessibilitySubPane {
         ancestor = ancestor.parentNode();
       }
       for (var ancestorNode of chain) {
-        var ancestorTreeElement = new Accessibility.AXNodeTreeElement(ancestorNode, this);
+        var ancestorTreeElement = new Accessibility.AXNodeTreeElement(ancestorNode, treeOutline);
         previousTreeElement.appendChild(ancestorTreeElement);
         previousTreeElement.expand();
         previousTreeElement = ancestorTreeElement;
       }
-      var parentTreeElement = new Accessibility.AXNodeTreeParentElement(parent, inspectedNodeTreeElement, this);
+      var parentTreeElement = new Accessibility.AXNodeTreeElement(parent, inspectedNodeTreeElement, treeOutline);
       previousTreeElement.appendChild(parentTreeElement);
-      if (this.isExpanded(parent.backendDOMNodeId()))
-        parentTreeElement.appendSiblings();
-      else
-        parentTreeElement.appendChild(inspectedNodeTreeElement);
+      for (var sibling of parent.children()) {
+        if (sibling === axNode)
+          parentTreeElement.appendChild(inspectedNodeTreeElement);
+        else
+          parentTreeElement.appendChild(new Accessibility.AXNodeTreeElement(sibling, treeOutline));
+      }
       previousTreeElement.expand();
       previousTreeElement = parentTreeElement;
     } else {
@@ -69,7 +72,7 @@ Accessibility.AXTreePane = class extends Accessibility.AccessibilitySubPane {
     previousTreeElement.expand();
 
     for (var child of axNode.children()) {
-      var childTreeElement = new Accessibility.AXNodeTreeElement(child, this);
+      var childTreeElement = new Accessibility.AXNodeTreeElement(child, treeOutline);
       inspectedNodeTreeElement.appendChild(childTreeElement);
     }
 
@@ -83,7 +86,7 @@ Accessibility.AXTreePane = class extends Accessibility.AccessibilitySubPane {
   /**
    * @param {!Accessibility.AccessibilityNode} axNode
    */
-  setSelectedNode(axNode) {
+  setInspectedNode(axNode) {
     if (axNode.parentNode()) {
       Common.Revealer.reveal(axNode.deferredDOMNode());
     } else {
@@ -156,8 +159,72 @@ Accessibility.InspectNodeButton = class {
    */
   _handleMouseDown(event) {
     this._treePane.setSelectedByUser(true);
-    this._treePane.setSelectedNode(this._axNode);
+    this._treePane.setInspectedNode(this._axNode);
   }
+};
+
+Accessibility.AXTreeOutline = class extends UI.TreeOutlineInShadow {
+  /**
+   * @param {!Accessibility.AXTreePane} treePane
+   */
+  constructor(treePane) {
+    super();
+
+    /** @type {!Accessibility.AXTreePane} */
+    this._treePane = treePane;
+
+    this.registerRequiredCSS('accessibility/accessibilityNode.css');
+    this.registerRequiredCSS('components/objectValue.css');
+
+    this.element.addEventListener('mouseleave', this._onmouseleave.bind(this), false);
+  }
+
+  /**
+   * @return {boolean}
+   * @override
+   */
+  selectPrevious() {
+    var startElement = this._hoveredTreeElement || this.selectedTreeElement;
+    var nextSelectedElement = startElement.traversePreviousTreeElement(true);
+    while (nextSelectedElement && !nextSelectedElement.selectable)
+      nextSelectedElement = nextSelectedElement.traversePreviousTreeElement(!this.expandTreeElementsWhenArrowing);
+    if (nextSelectedElement) {
+      nextSelectedElement.reveal();
+      nextSelectedElement.select();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * @return {boolean}
+   * @override
+   */
+  selectNext() {
+    var startElement = this._hoveredTreeElement || this.selectedTreeElement;
+    var nextSelectedElement = startElement.traverseNextTreeElement(true);
+    while (nextSelectedElement && !nextSelectedElement.selectable)
+      nextSelectedElement = nextSelectedElement.traverseNextTreeElement(!this.expandTreeElementsWhenArrowing);
+    if (nextSelectedElement) {
+      nextSelectedElement.reveal();
+      nextSelectedElement.select();
+      return true;
+    }
+    return false;
+  }
+
+  setHoveredTreeElement(treeElement) {
+    if (this._hovered === treeElement)
+      return;
+    if (this._hovered)
+      this._hovered.setHovered(false);
+    this._hovered = treeElement;
+  }
+
+  _onmouseleave(event) {
+    this.setHoveredTreeElement(null);
+  }
+
 };
 
 /**
@@ -166,21 +233,65 @@ Accessibility.InspectNodeButton = class {
 Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
   /**
    * @param {!Accessibility.AccessibilityNode} axNode
-   * @param {!Accessibility.AXTreePane} treePane
+   * @param {!Accessibility.AXTreeOutline} treeOutline
    */
-  constructor(axNode, treePane) {
+  constructor(axNode) {
     // Pass an empty title, the title gets made later in onattach.
     super('');
 
     /** @type {!Accessibility.AccessibilityNode} */
     this._axNode = axNode;
 
-    /** @type {!Accessibility.AXTreePane} */
-    this._treePane = treePane;
-
     this.selectable = true;
+    this.paddingSize = 12;
+    this._hovered = false;
 
-    this._inspectNodeButton = new Accessibility.InspectNodeButton(axNode, treePane);
+    this.listItemElement.addEventListener('mousemove', this._onmousemove.bind(this), false);
+    this.listItemElement.addEventListener('mouseleave', this._onmouseleave.bind(this), false);
+    this.listItemElement.classList.toggle('dom-node', axNode.isDOMNode());
+  }
+
+  /**
+   * @param {boolean} x
+   */
+  setHovered(x) {
+    if (!this.treeOutline || this._hovered === x)
+      return;
+    this._hovered = x;
+
+    this.listItemElement.classList.toggle('hovered', x);
+    if (this._hovered) {
+      this.highlightDOMNode();
+      this.treeOutline.setHoveredTreeElement(this);
+    }
+  }
+
+  highlightDOMNode() {
+    if (this._axNode.isDOMNode())
+      this._axNode.highlightDOMNode();
+  }
+
+  /**
+   * @override
+   */
+  onbind() {
+    this._inspectNodeButton = new Accessibility.InspectNodeButton(this._axNode, this.treeOutline._treePane);
+  }
+
+  _onmousemove(event) {
+    this.setHovered(true);
+  }
+
+  _onmouseleave(event) {
+    this.setHovered(false);
+    event.consume();
+  }
+
+  /**
+   * @override
+   */
+  onunbind() {
+    this.setHovered(false);
   }
 
   /**
@@ -195,12 +306,19 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
    */
   setInspected(inspected) {
     this._inspected = inspected;
-    if (this._inspected)
-      this.setTrailingIcons([UI.Icon.create('smallicon-thick-left-arrow')]);
-    else
-      this.setTrailingIcons([]);
 
     this.listItemElement.classList.toggle('inspected', this._inspected);
+    this.listItemElement.classList.toggle('selected', this._inspected);
+    this.listItemElement.classList.toggle('force-white-icons', this._inspected);
+  }
+
+  /**
+   * @override
+   * @param {Event} event
+   */
+  selectOnMouseDown(event) {
+    this.inspectDOMNode();
+    event.consume(true);
   }
 
   /**
@@ -213,18 +331,19 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
   }
 
   /**
-   * @override
-   * @param {!Event} event
+   * @param {boolean=} selectedByUser
    * @return {boolean}
    */
-  ondblclick(event) {
+  onselect(selectedByUser) {
     this.inspectDOMNode();
-    return true;
+    return false;
   }
 
   inspectDOMNode() {
-    this._treePane.setSelectedByUser(true);
-    this._treePane.setSelectedNode(this._axNode);
+    if (!this.treeOutline || !this._axNode.isDOMNode())
+      return;
+    this.treeOutline._treePane.setSelectedByUser(true);
+    this.treeOutline._treePane.setInspectedNode(this._axNode);
   }
 
   /**
@@ -248,7 +367,7 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
     }
 
     if (this._axNode.hasOnlyUnloadedChildren()) {
-      this.titleElement().classList.add('children-unloaded');
+      this.listItemElement.classList.add('children-unloaded');
       this.setExpandable(true);
     } else {
       this.setExpandable(!!this._axNode.numChildren());
@@ -263,10 +382,16 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
    * @override
    */
   expand() {
-    if (!this._axNode || this._axNode.hasOnlyUnloadedChildren())
+    if (!this.treeOutline || !this._axNode)
       return;
 
-    this._treePane.setExpanded(this._axNode.backendDOMNodeId(), true);
+    if (this._axNode.isDOMNode && this._axNode.hasOnlyUnloadedChildren()) {
+      this.treeOutline._treePane.setExpanded(this._axNode.backendDOMNodeId(), true);
+      this.inspectDOMNode();
+      this.return;
+    }
+
+    this.treeOutline._treePane.setExpanded(this._axNode.backendDOMNodeId(), true);
     super.expand();
   }
 
@@ -274,11 +399,11 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
    * @override
    */
   collapse() {
-    if (!this._axNode || this._axNode.hasOnlyUnloadedChildren())
+    if (!this.treeOutline || !this._axNode || this._axNode.hasOnlyUnloadedChildren())
       return;
 
-    if (this._treePane)
-      this._treePane.setExpanded(this._axNode.backendDOMNodeId(), false);
+    if (this.treeOutline._treePane)
+      this.treeOutline._treePane.setExpanded(this._axNode.backendDOMNodeId(), false);
     super.collapse();
   }
 
@@ -313,6 +438,16 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
     this.titleElement().appendChild(ignoredNodeElement);
   }
 
+  deselect() {
+    if (!this.treeOutline || this.treeOutline.selectedTreeElement !== this || !this.selected)
+      return;
+
+    this.selected = false;
+    this.treeOutline.selectedTreeElement = null;
+    this._listItemNode.classList.remove('preselected');
+    this._setFocused(false);
+  }
+
   /**
    * @param {boolean=} omitFocus
    * @param {boolean=} selectedByUser
@@ -320,9 +455,29 @@ Accessibility.AXNodeTreeElement = class extends UI.TreeElement {
    * @override
    */
   select(omitFocus, selectedByUser) {
-    this._treePane.setSelectedByUser(!!selectedByUser);
+    if (!this.treeOutline || !this.selectable || this.preselected)
+      return false;
 
-    return super.select(omitFocus, selectedByUser);
+    if (this.treeOutline.selectedTreeElement)
+      this.treeOutline.selectedTreeElement.deselect();
+    this.treeOutline.selectedTreeElement = null;
+
+    if (this.treeOutline._rootElement === this)
+      return false;
+
+    this.selected = true;
+
+    if (!omitFocus)
+      this.treeOutline.focus();
+
+    // Focusing on another node may detach "this" from tree.
+    if (!this.treeOutline)
+      return false;
+    this.treeOutline.setHoveredTreeElement(null);
+    this.treeOutline.selectedTreeElement = this;
+    this._listItemNode.classList.add('preselected');
+    this._setFocused(this.treeOutline._focused);
+    return false;
   }
 };
 
@@ -332,106 +487,3 @@ Accessibility.AXNodeTreeElement.RoleStyles = {
   role: 'ax-role',
 };
 
-/**
- * @unrestricted
- */
-Accessibility.ExpandSiblingsButton = class {
-  /**
-   * @param {!Accessibility.AXNodeTreeParentElement} treeElement
-   * @param {number} numSiblings
-   */
-  constructor(treeElement, numSiblings) {
-    this._treeElement = treeElement;
-
-    this.element = createElementWithClass('button', 'expand-siblings');
-    this.element.textContent = Common.UIString((numSiblings === 1 ? '+ %d node' : '+ %d nodes'), numSiblings);
-    this.element.addEventListener('mousedown', this._handleMouseDown.bind(this));
-  }
-
-  /**
-   * @param {!Event} event
-   */
-  _handleMouseDown(event) {
-    this._treeElement.expandSiblings();
-    event.consume();
-  }
-};
-
-/**
- * @unrestricted
- */
-Accessibility.AXNodeTreeParentElement = class extends Accessibility.AXNodeTreeElement {
-  /**
-   * @param {!Accessibility.AccessibilityNode} axNode
-   * @param {!Accessibility.AXNodeTreeElement} inspectedNodeTreeElement
-   * @param {!Accessibility.AXTreePane} treePane
-   */
-  constructor(axNode, inspectedNodeTreeElement, treePane) {
-    super(axNode, treePane);
-
-    this._inspectedNodeTreeElement = inspectedNodeTreeElement;
-    var numSiblings = axNode.children().length - 1;
-    this._expandSiblingsButton = new Accessibility.ExpandSiblingsButton(this, numSiblings);
-    this._partiallyExpanded = false;
-  }
-
-  /**
-   * @override
-   */
-  onattach() {
-    super.onattach();
-    if (this._treePane.isExpanded(this._axNode.backendDOMNodeId()))
-      this.listItemElement.classList.add('siblings-expanded');
-    if (this._axNode.numChildren() > 1)
-      this.titleElement().insertBefore(this._expandSiblingsButton.element, this._inspectNodeButton.element);
-  }
-
-  /**
-   * @param {boolean} altKey
-   * @return {boolean}
-   * @override
-   */
-  descendOrExpand(altKey) {
-    if (!this.expanded || !this._partiallyExpanded)
-      return super.descendOrExpand(altKey);
-
-    this.expandSiblings();
-    if (altKey)
-      this.expandRecursively();
-    return true;
-  }
-
-  /**
-   * @override
-   */
-  expand() {
-    super.expand();
-    this._partiallyExpanded = true;
-  }
-
-  expandSiblings() {
-    this.listItemElement.classList.add('siblings-expanded');
-    this.appendSiblings();
-    this.expanded = true;
-    this._partiallyExpanded = false;
-    this._treePane.setExpanded(this._axNode.backendDOMNodeId(), true);
-  }
-
-  appendSiblings() {
-    var inspectedAXNode = this._inspectedNodeTreeElement.axNode();
-    var nextIndex = 0;
-    var foundInspectedNode = false;
-    for (var sibling of this._axNode.children()) {
-      var siblingTreeElement = null;
-      if (sibling === inspectedAXNode) {
-        foundInspectedNode = true;
-        continue;
-      }
-      siblingTreeElement = new Accessibility.AXNodeTreeElement(sibling, this._treePane);
-      if (foundInspectedNode)
-        this.appendChild(siblingTreeElement);
-      else
-        this.insertChild(siblingTreeElement, nextIndex++);
-    }
-  }
-};
