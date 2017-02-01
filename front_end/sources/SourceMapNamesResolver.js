@@ -31,7 +31,8 @@ Sources.SourceMapNamesResolver._scopeIdentifiers = function(scope) {
   var endLocation = scope.endLocation();
 
   if (scope.type() === Protocol.Debugger.ScopeType.Global || !startLocation || !endLocation ||
-      !startLocation.script().sourceMapURL || (startLocation.script() !== endLocation.script()))
+      !startLocation.script() || !startLocation.script().sourceMapURL ||
+      (startLocation.script() !== endLocation.script()))
     return Promise.resolve(/** @type {!Array<!Sources.SourceMapNamesResolver.Identifier>}*/ ([]));
 
   var script = startLocation.script();
@@ -332,7 +333,8 @@ Sources.SourceMapNamesResolver.resolveScopeInObject = function(scope) {
   var endLocation = scope.endLocation();
 
   if (scope.type() === Protocol.Debugger.ScopeType.Global || !startLocation || !endLocation ||
-      !startLocation.script().sourceMapURL || startLocation.script() !== endLocation.script())
+      !startLocation.script() || !startLocation.script().sourceMapURL ||
+      startLocation.script() !== endLocation.script())
     return scope.object();
 
   return new Sources.SourceMapNamesResolver.RemoteObject(scope);
@@ -401,18 +403,20 @@ Sources.SourceMapNamesResolver.RemoteObject = class extends SDK.RemoteObject {
 
   /**
    * @override
+   * @param {boolean} generatePreview
    * @param {function(?Array.<!SDK.RemoteObjectProperty>, ?Array.<!SDK.RemoteObjectProperty>)} callback
    */
-  getOwnProperties(callback) {
-    this._object.getOwnProperties(callback);
+  getOwnProperties(generatePreview, callback) {
+    this._object.getOwnProperties(generatePreview, callback);
   }
 
   /**
    * @override
    * @param {boolean} accessorPropertiesOnly
+   * @param {boolean} generatePreview
    * @param {function(?Array<!SDK.RemoteObjectProperty>, ?Array<!SDK.RemoteObjectProperty>)} callback
    */
-  getAllProperties(accessorPropertiesOnly, callback) {
+  getAllProperties(accessorPropertiesOnly, generatePreview, callback) {
     /**
      * @param {?Array.<!SDK.RemoteObjectProperty>} properties
      * @param {?Array.<!SDK.RemoteObjectProperty>} internalProperties
@@ -443,7 +447,7 @@ Sources.SourceMapNamesResolver.RemoteObject = class extends SDK.RemoteObject {
       callback(newProperties, internalProperties);
     }
 
-    this._object.getAllProperties(accessorPropertiesOnly, wrappedCallback.bind(this));
+    this._object.getAllProperties(accessorPropertiesOnly, generatePreview, wrappedCallback.bind(this));
   }
 
   /**

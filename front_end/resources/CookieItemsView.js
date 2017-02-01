@@ -31,7 +31,7 @@
  * @unrestricted
  */
 Resources.CookieItemsView = class extends UI.SimpleView {
-  constructor(treeElement, cookieDomain) {
+  constructor(treeElement, target, cookieDomain) {
     super(Common.UIString('Cookies'));
 
     this.element.classList.add('storage-view');
@@ -53,15 +53,9 @@ Resources.CookieItemsView = class extends UI.SimpleView {
     this._filterSeparator = new UI.ToolbarSeparator();
     this._filterButton = this._filterBar.filterButton();
 
+    this._target = target;
     this._treeElement = treeElement;
     this._cookieDomain = cookieDomain;
-
-    this._emptyWidget = new UI.EmptyWidget(
-        cookieDomain ?
-            Common.UIString('This site has no cookies.') :
-            Common.UIString(
-                'By default cookies are disabled for local files.\nYou could override this by starting the browser with --enable-file-cookies command line flag.'));
-    this._emptyWidget.show(this.element);
 
     this.element.addEventListener('contextmenu', this._contextMenu.bind(this), true);
   }
@@ -98,36 +92,39 @@ Resources.CookieItemsView = class extends UI.SimpleView {
   }
 
   _update() {
-    SDK.Cookies.getCookiesAsync(this._updateWithCookies.bind(this));
+    var resourceURLs = [];
+    var cookieDomain = this._cookieDomain;
+    /**
+     * @param {!SDK.Resource} resource
+     */
+    function populateResourceURLs(resource) {
+      var url = resource.documentURL.asParsedURL();
+      if (url && url.securityOrigin() === cookieDomain)
+        resourceURLs.push(resource.url);
+    }
+
+    SDK.ResourceTreeModel.fromTarget(this._target).forAllResources(populateResourceURLs);
+    SDK.Cookies.getCookiesAsync(this._target, resourceURLs, this._updateWithCookies.bind(this));
   }
 
   /**
    * @param {!Array.<!SDK.Cookie>} allCookies
    */
   _updateWithCookies(allCookies) {
-    this._cookies = this._filterCookiesForDomain(allCookies);
-
-    if (!this._cookies.length) {
-      // Nothing to show.
-      this._emptyWidget.show(this.element);
-      this._filterButton.setEnabled(false);
-      this._clearButton.setEnabled(false);
-      this._deleteButton.setEnabled(false);
-      if (this._cookiesTable)
-        this._cookiesTable.detach();
-      return;
-    }
+    this._cookies = allCookies;
+    this._totalSize = allCookies.reduce((size, cookie) => size + cookie.size(), 0);
 
     if (!this._cookiesTable) {
+      const parsedURL = this._cookieDomain.asParsedURL();
+      const domain = parsedURL ? parsedURL.host : '';
       this._cookiesTable =
-          new CookieTable.CookiesTable(false, this._update.bind(this), this._enableDeleteButton.bind(this));
+          new CookieTable.CookiesTable(false, this._update.bind(this), this._enableDeleteButton.bind(this), domain);
     }
 
-    var shownCookies = this._filterCookiesForFilters(this._cookies);
+    var shownCookies = this._filterCookies(this._cookies);
     this._cookiesTable.setCookies(shownCookies);
-    this._emptyWidget.detach();
-    this._cookiesTable.show(this.element);
     this._filterBar.show(this.element);
+    this._cookiesTable.show(this.element);
     this._treeElement.subtitle =
         String.sprintf(Common.UIString('%d cookies (%s)'), this._cookies.length, Number.bytesToString(this._totalSize));
     this._filterButton.setEnabled(true);
@@ -138,7 +135,7 @@ Resources.CookieItemsView = class extends UI.SimpleView {
   /**
    * @param {!Array.<!SDK.Cookie>} cookies
    */
-  _filterCookiesForFilters(cookies) {
+  _filterCookies(cookies) {
     if (!this._filterRegex)
       return cookies;
 
@@ -146,41 +143,6 @@ Resources.CookieItemsView = class extends UI.SimpleView {
       const candidate = `${cookie.name()} ${cookie.value()} ${cookie.domain()}`;
       return this._filterRegex.test(candidate);
     });
-  }
-
-  /**
-   * @param {!Array.<!SDK.Cookie>} allCookies
-   */
-  _filterCookiesForDomain(allCookies) {
-    var cookies = [];
-    var resourceURLsForDocumentURL = [];
-    this._totalSize = 0;
-
-    /**
-     * @this {Resources.CookieItemsView}
-     */
-    function populateResourcesForDocuments(resource) {
-      var url = resource.documentURL.asParsedURL();
-      if (url && url.securityOrigin() === this._cookieDomain)
-        resourceURLsForDocumentURL.push(resource.url);
-    }
-    Bindings.forAllResources(populateResourcesForDocuments.bind(this));
-
-    for (var i = 0; i < allCookies.length; ++i) {
-      var pushed = false;
-      var size = allCookies[i].size();
-      for (var j = 0; j < resourceURLsForDocumentURL.length; ++j) {
-        var resourceURL = resourceURLsForDocumentURL[j];
-        if (SDK.Cookies.cookieMatchesResourceURL(allCookies[i], resourceURL)) {
-          this._totalSize += size;
-          if (!pushed) {
-            pushed = true;
-            cookies.push(allCookies[i]);
-          }
-        }
-      }
-    }
-    return cookies;
   }
 
   clear() {

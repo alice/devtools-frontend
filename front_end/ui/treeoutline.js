@@ -212,6 +212,9 @@ UI.TreeOutline = class extends Common.Object {
     return false;
   }
 
+  /**
+   * @param {number} paddingSize
+   */
   setPaddingSize(paddingSize) {
     this._paddingSize = paddingSize;
   }
@@ -760,27 +763,11 @@ UI.TreeElement = class {
     }
   }
 
-  /**
-   * @return {number}
-   */
-  computeLeftMargin() {
-    var treeElement = this.parent;
-    var depth = 0;
-    while (treeElement !== null) {
-      depth++;
-      treeElement = treeElement.parent;
-    }
-
-    return -(this.treeOutline._paddingSize * (depth - 1) + 4);
-  }
-
   _ensureSelection() {
     if (!this.treeOutline || !this.treeOutline._renderSelection)
       return;
     if (!this._selectionElement)
       this._selectionElement = createElementWithClass('div', 'selection fill');
-    if (this.treeOutline._paddingSize)
-      this._selectionElement.style.setProperty('margin-left', this.computeLeftMargin() + 'px');
     this._listItemNode.insertBefore(this._selectionElement, this.listItemElement.firstChild);
   }
 

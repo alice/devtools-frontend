@@ -36,7 +36,7 @@ SDK.RuntimeModel = class extends SDK.SDKModel {
    * @param {!SDK.Target} target
    */
   constructor(target) {
-    super(SDK.RuntimeModel, target);
+    super(target);
 
     this._agent = target.runtimeAgent();
     this.target().registerRuntimeDispatcher(new SDK.RuntimeDispatcher(this));
@@ -323,6 +323,9 @@ SDK.RuntimeModel = class extends SDK.SDKModel {
   }
 };
 
+// TODO(dgozman): should be JS.
+SDK.SDKModel.register(SDK.RuntimeModel, SDK.Target.Capability.None);
+
 /** @enum {symbol} */
 SDK.RuntimeModel.Events = {
   ExecutionContextCreated: Symbol('ExecutionContextCreated'),
@@ -384,12 +387,7 @@ SDK.RuntimeDispatcher = class {
    * @param {number} exceptionId
    */
   exceptionRevoked(reason, exceptionId) {
-    var consoleMessage = new SDK.ConsoleMessage(
-        this._runtimeModel.target(), SDK.ConsoleMessage.MessageSource.JS, SDK.ConsoleMessage.MessageLevel.RevokedError,
-        reason, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-        undefined);
-    consoleMessage.setRevokedExceptionId(exceptionId);
-    this._runtimeModel.target().consoleModel.addMessage(consoleMessage);
+    this._runtimeModel.target().consoleModel.revokeException(exceptionId);
   }
 
   /**
@@ -401,14 +399,14 @@ SDK.RuntimeDispatcher = class {
    * @param {!Protocol.Runtime.StackTrace=} stackTrace
    */
   consoleAPICalled(type, args, executionContextId, timestamp, stackTrace) {
-    var level = SDK.ConsoleMessage.MessageLevel.Log;
+    var level = SDK.ConsoleMessage.MessageLevel.Info;
     if (type === SDK.ConsoleMessage.MessageType.Debug)
-      level = SDK.ConsoleMessage.MessageLevel.Debug;
+      level = SDK.ConsoleMessage.MessageLevel.Verbose;
     if (type === SDK.ConsoleMessage.MessageType.Error || type === SDK.ConsoleMessage.MessageType.Assert)
       level = SDK.ConsoleMessage.MessageLevel.Error;
     if (type === SDK.ConsoleMessage.MessageType.Warning)
       level = SDK.ConsoleMessage.MessageLevel.Warning;
-    if (type === SDK.ConsoleMessage.MessageType.Info)
+    if (type === SDK.ConsoleMessage.MessageType.Info || type === SDK.ConsoleMessage.MessageType.Log)
       level = SDK.ConsoleMessage.MessageLevel.Info;
     var message = '';
     if (args.length && typeof args[0].value === 'string')
@@ -473,6 +471,8 @@ SDK.ExecutionContext = class extends SDK.SDKObject {
      * @return {number}
      */
     function targetWeight(target) {
+      if (!target.parentTarget())
+        return 4;
       if (target.hasBrowserCapability())
         return 3;
       if (target.hasJSCapability())

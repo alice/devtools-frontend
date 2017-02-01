@@ -46,7 +46,7 @@ div.ax-text-alternatives {
 }
 
 span.ax-role {
-    font-weight: bold;
+    font-weight: normal;
 }
 
 span.ax-internal-role {
@@ -85,7 +85,7 @@ span.ax-internal-role {
 }
 
 .tree-outline li.no-dom-node {
-    opacity: 0.5;
+    opacity: 0.7;
 }
 
 .tree-outline li.children-unloaded::before {
@@ -136,30 +136,44 @@ button.expand-siblings {
     border: 1px solid #ddd;
     margin-left: 5px;
     margin-bottom: 1px;
-    font-size: 11px;
 }
 
 li.siblings-expanded button.expand-siblings {
     display: none;
 }
 
-.tree-outline li:hover .inspect-dom-node {
-    display: initial;
+ol.tree-outline {
+    padding-left: 0;
 }
 
-.tree-outline li.no-dom-node:hover .inspect-dom-node,
-.tree-outline li.inspected:hover .inspect-dom-node {
+.tree-outline ol {
+    padding-left: 0;
+}
+
+.tree-outline li.hovered .inspect-dom-node {
+    display: none;
+}
+
+.tree-outline li.no-dom-node.hovered .inspect-dom-node,
+.tree-outline li.inspected.hovered .inspect-dom-node {
     display: none;
 }
 
 li .inspect-dom-node {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-color: #5a5a5a;
     padding: 0;
     margin-left: 5px;
     border: 0;
     display: none;
-    position: relative;
     top: 2px;
+}
+
+.tree-outline li .selection {
+    margin-left: 0;
 }
 
 .tree-outline:focus li.inspected .inspect-dom-node {
@@ -171,13 +185,13 @@ li .inspect-dom-node {
     display: block;
     left: 3px;
     right: 3px;
+    background-color: rgba(56, 121, 217, 0.1);
     border-radius: 5px;
-    background-color: rgba(128, 128, 128, 0.1);
 }
 
-.tree-outline:focus li.hovered.dom-node:not(.inspected) .selection,
-.tree-outline:focus li.preselected.dom-node:not(.inspected) .selection {
-    background-color: rgba(56, 121, 217, 0.1);
+.tree-outline li.no-dom-node:not(.inspected) .selection,
+.tree-outline:focus li.no-dom-node:not(.inspected) .selection {
+    background-color: #f3f3f3;
 }
 
 .tree-outline li.preselected:not(.inspected) .selection {

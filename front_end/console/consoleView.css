@@ -98,14 +98,14 @@
 .console-timestamp {
     color: gray;
     -webkit-user-select: none;
-    flex-grow: 0;
+    flex: none;
     margin-right: 5px;
 }
 
 .message-level-icon, .command-result-icon {
     position: absolute;
     left: -17px;
-    top: 5px;
+    top: 4px;
     -webkit-user-select: none;
 }
 
@@ -128,10 +128,8 @@
 }
 
 .console-error-level .repeated-message,
-.console-revokedError-level .repeated-message,
-.console-log-level .repeated-message,
 .console-warning-level .repeated-message,
-.console-debug-level .repeated-message,
+.console-verbose-level .repeated-message,
 .console-info-level .repeated-message {
     display: flex;
 }
@@ -139,6 +137,7 @@
 .console-info {
     color: rgb(128, 128, 128);
     font-style: italic;
+    padding-bottom: 2px;
 }
 
 .console-group .console-group > .console-group-messages {
@@ -235,11 +234,7 @@
     color: hsl(0, 100%, 75%) !important;
 }
 
-.console-debug-level .console-message-text {
-    color: blue;
-}
-
-.-theme-with-dark-background .console-debug-level .console-message-text {
+.-theme-with-dark-background .console-verbose-level .console-message-text {
     color: hsl(220, 100%, 65%) !important;
 }
 

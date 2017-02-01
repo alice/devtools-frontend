@@ -79,8 +79,8 @@ Resources.ResourcesPanel = class extends UI.PanelWithSidebar {
     this.resourcesListTreeElement = this._addSidebarSection(Common.UIString('Frames'));
 
     var mainContainer = new UI.VBox();
-    this.storageViews = mainContainer.element.createChild('div', 'vbox flex-auto');
     this._storageViewToolbar = new UI.Toolbar('resources-toolbar', mainContainer.element);
+    this.storageViews = mainContainer.element.createChild('div', 'vbox flex-auto');
     this.splitWidget().setMainWidget(mainContainer);
 
     /** @type {!Map.<!Resources.Database, !Object.<string, !Resources.DatabaseTableView>>} */
@@ -390,15 +390,18 @@ Resources.ResourcesPanel = class extends UI.PanelWithSidebar {
     this.databasesListTreeElement.appendChild(databaseTreeElement);
   }
 
-  addDocumentURL(url) {
-    var parsedURL = url.asParsedURL();
-    if (!parsedURL)
+  /**
+   * @param {!SDK.ResourceTreeFrame} frame
+   */
+  addCookieDocument(frame) {
+    var parsedURL = frame.url.asParsedURL();
+    if (!parsedURL || (parsedURL.scheme !== 'http' && parsedURL.scheme !== 'https' && parsedURL.scheme !== 'file'))
       return;
 
     var domain = parsedURL.securityOrigin();
     if (!this._domains[domain]) {
       this._domains[domain] = true;
-      var cookieDomainTreeElement = new Resources.CookieTreeElement(this, domain);
+      var cookieDomainTreeElement = new Resources.CookieTreeElement(this, frame, domain);
       this.cookieListTreeElement.appendChild(cookieDomainTreeElement);
     }
   }
@@ -582,11 +585,12 @@ Resources.ResourcesPanel = class extends UI.PanelWithSidebar {
   /**
    * @param {!Resources.CookieTreeElement} treeElement
    * @param {string} cookieDomain
+   * @param {!SDK.ResourceTreeFrame} cookieFrameTarget
    */
-  showCookies(treeElement, cookieDomain) {
+  showCookies(treeElement, cookieDomain, cookieFrameTarget) {
     var view = this._cookieViews[cookieDomain];
     if (!view) {
-      view = new Resources.CookieItemsView(treeElement, cookieDomain);
+      view = new Resources.CookieItemsView(treeElement, cookieFrameTarget, cookieDomain);
       this._cookieViews[cookieDomain] = view;
     }
 
@@ -635,9 +639,10 @@ Resources.ResourcesPanel = class extends UI.PanelWithSidebar {
     this.visibleView = view;
 
     this._storageViewToolbar.removeToolbarItems();
-    var toolbarItems = view instanceof UI.SimpleView ? view.syncToolbarItems() : null;
-    for (var i = 0; toolbarItems && i < toolbarItems.length; ++i)
+    var toolbarItems = (view instanceof UI.SimpleView && view.syncToolbarItems()) || [];
+    for (var i = 0; i < toolbarItems.length; ++i)
       this._storageViewToolbar.appendToolbarItem(toolbarItems[i]);
+    this._storageViewToolbar.element.classList.toggle('hidden', !toolbarItems.length);
   }
 
   closeVisibleView() {
@@ -695,24 +700,24 @@ Resources.ResourcesPanel = class extends UI.PanelWithSidebar {
    * @param {!SDK.ResourceTreeModel} resourceTreeModel
    */
   _populateApplicationCacheTree(resourceTreeModel) {
-    this._applicationCacheModel = new SDK.ApplicationCacheModel(this._target, resourceTreeModel);
+    this._applicationCacheModel = Resources.ApplicationCacheModel.fromTarget(this._target);
 
     this._applicationCacheViews = {};
     this._applicationCacheFrameElements = {};
     this._applicationCacheManifestElements = {};
 
     this._applicationCacheModel.addEventListener(
-        SDK.ApplicationCacheModel.Events.FrameManifestAdded, this._applicationCacheFrameManifestAdded, this);
+        Resources.ApplicationCacheModel.Events.FrameManifestAdded, this._applicationCacheFrameManifestAdded, this);
     this._applicationCacheModel.addEventListener(
-        SDK.ApplicationCacheModel.Events.FrameManifestRemoved, this._applicationCacheFrameManifestRemoved, this);
+        Resources.ApplicationCacheModel.Events.FrameManifestRemoved, this._applicationCacheFrameManifestRemoved, this);
     this._applicationCacheModel.addEventListener(
-        SDK.ApplicationCacheModel.Events.FrameManifestsReset, this._resetAppCache, this);
+        Resources.ApplicationCacheModel.Events.FrameManifestsReset, this._resetAppCache, this);
 
     this._applicationCacheModel.addEventListener(
-        SDK.ApplicationCacheModel.Events.FrameManifestStatusUpdated, this._applicationCacheFrameManifestStatusChanged,
-        this);
+        Resources.ApplicationCacheModel.Events.FrameManifestStatusUpdated,
+        this._applicationCacheFrameManifestStatusChanged, this);
     this._applicationCacheModel.addEventListener(
-        SDK.ApplicationCacheModel.Events.NetworkStateChanged, this._applicationCacheNetworkStateChanged, this);
+        Resources.ApplicationCacheModel.Events.NetworkStateChanged, this._applicationCacheNetworkStateChanged, this);
   }
 
   _applicationCacheFrameManifestAdded(event) {
@@ -945,7 +950,7 @@ Resources.FrameTreeElement = class extends Resources.BaseStorageTreeElement {
     this._categoryElements = {};
     this._treeElementForResource = {};
 
-    this._storagePanel.addDocumentURL(frame.url);
+    this._storagePanel.addCookieDocument(frame);
   }
 
   get itemURL() {
@@ -1666,7 +1671,7 @@ Resources.IDBDatabaseTreeElement = class extends Resources.BaseStorageTreeElemen
   onselect(selectedByUser) {
     super.onselect(selectedByUser);
     if (!this._view)
-      this._view = new Resources.IDBDatabaseView(this._database);
+      this._view = new Resources.IDBDatabaseView(this._model, this._database);
 
     this._storagePanel._innerShowView(this._view);
     return false;
@@ -1902,16 +1907,31 @@ Resources.DOMStorageTreeElement = class extends Resources.BaseStorageTreeElement
     this._storagePanel._showDOMStorage(this._domStorage);
     return false;
   }
+
+  /**
+   * @override
+   */
+  onattach() {
+    super.onattach();
+    this.listItemElement.addEventListener('contextmenu', this._handleContextMenuEvent.bind(this), true);
+  }
+
+  _handleContextMenuEvent(event) {
+    var contextMenu = new UI.ContextMenu(event);
+    contextMenu.appendItem(Common.UIString('Clear'), () => this._domStorage.clear());
+    contextMenu.show();
+  }
 };
 
 /**
  * @unrestricted
  */
 Resources.CookieTreeElement = class extends Resources.BaseStorageTreeElement {
-  constructor(storagePanel, cookieDomain) {
+  constructor(storagePanel, frame, cookieDomain) {
     super(
         storagePanel, cookieDomain ? cookieDomain : Common.UIString('Local Files'),
         ['cookie-tree-item', 'resource-tree-item']);
+    this._frame = frame;
     this._cookieDomain = cookieDomain;
   }
 
@@ -1949,7 +1969,7 @@ Resources.CookieTreeElement = class extends Resources.BaseStorageTreeElement {
    */
   onselect(selectedByUser) {
     super.onselect(selectedByUser);
-    this._storagePanel.showCookies(this, this._cookieDomain);
+    this._storagePanel.showCookies(this, this._cookieDomain, this._frame.target());
     return false;
   }
 };

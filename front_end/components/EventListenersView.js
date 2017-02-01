@@ -57,7 +57,7 @@ Components.EventListenersView = class {
 
     var promises = [];
     promises.push(object.eventListeners().then(storeEventListeners));
-    promises.push(SDK.EventListener.frameworkEventListeners(object).then(storeFrameworkEventListenersObject));
+    promises.push(Components.frameworkEventListeners(object).then(storeFrameworkEventListenersObject));
     return Promise.all(promises).then(markInternalEventListeners).then(addEventListeners.bind(this));
 
     /**
@@ -285,7 +285,8 @@ Components.ObjectEventListenerBar = class extends UI.TreeElement {
     var subtitle = this.listItemElement.createChild('span', 'event-listener-tree-subtitle');
     subtitle.appendChild(linkifier.linkifyRawLocation(this._eventListener.location(), this._eventListener.sourceURL()));
 
-    title.appendChild(Components.ObjectPropertiesSection.createValueElement(object, false));
+    title.appendChild(
+        Components.ObjectPropertiesSection.createValueElement(object, false /* wasThrown */, false /* showPreview */));
 
     if (this._eventListener.removeFunction()) {
       var deleteButton = title.createChild('span', 'event-listener-button');

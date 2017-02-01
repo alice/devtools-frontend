@@ -92,7 +92,6 @@ UI.Icon.Descriptor;
 /** @enum {!UI.Icon.Descriptor} */
 UI.Icon.Descriptors = {
   'smallicon-error': {x: -20, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
-  'smallicon-revoked-error': {x: -40, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-warning': {x: -60, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-info': {x: -80, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-device': {x: -100, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
@@ -102,20 +101,24 @@ UI.Icon.Descriptors = {
   'smallicon-thick-right-arrow': {x: -180, y: 0, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-thick-left-arrow':
       {x: -180, y: 0, width: 10, height: 10, spritesheet: 'smallicons', transform: 'rotate(180deg)'},
-  'smallicon-user-command': {x: 0, y: -20, width: 10, height: 10, spritesheet: 'smallicons'},
+  'smallicon-user-command': {x: 0, y: -19, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-text-prompt': {x: -20, y: -20, width: 10, height: 10, spritesheet: 'smallicons'},
-  'smallicon-command-result': {x: -40, y: -20, width: 10, height: 10, spritesheet: 'smallicons'},
+  'smallicon-command-result': {x: -40, y: -19, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-shadow': {x: -60, y: -20, width: 10, height: 10, spritesheet: 'smallicons', isMask: true},
   'smallicon-bezier': {x: -80, y: -20, width: 10, height: 10, spritesheet: 'smallicons', isMask: true},
   'smallicon-dropdown-arrow': {x: -18, y: -96, width: 12, height: 12, spritesheet: 'largeicons', isMask: true},
   'smallicon-triangle-right': {x: -4, y: -98, width: 10, height: 8, spritesheet: 'largeicons', isMask: true},
-  'smallicon-triangle-bottom': {x: -20, y: -98, width: 10, height: 8, spritesheet: 'largeicons', isMask: true},
+  'smallicon-triangle-down': {x: -20, y: -98, width: 10, height: 8, spritesheet: 'largeicons', isMask: true},
+  'smallicon-triangle-up': {x: -4, y: -111, width: 10, height: 8, spritesheet: 'largeicons', isMask: true},
   'smallicon-arrow-in-circle': {x: -10, y: -127, width: 11, height: 11, spritesheet: 'largeicons', isMask: true},
   'smallicon-cross': {x: -177, y: -98, width: 10, height: 10, spritesheet: 'largeicons'},
   'smallicon-inline-breakpoint': {x: -140, y: -20, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-inline-breakpoint-conditional': {x: -160, y: -20, width: 10, height: 10, spritesheet: 'smallicons'},
   'smallicon-file': {x: -64, y: -24, width: 12, height: 14, spritesheet: 'largeicons'},
   'smallicon-file-sync': {x: -76, y: -24, width: 12, height: 14, spritesheet: 'largeicons'},
+  'smallicon-search': {x: -234, y: -30, width: 12, height: 12, spritesheet: 'largeicons'},
+  'smallicon-clear-input': {x: -143, y: -96, width: 13, height: 13, spritesheet: 'largeicons'},
+  'smallicon-checkmark': {x: -128, y: -109, width: 10, height: 10, spritesheet: 'largeicons'},
 
   'largeicon-longclick-triangle': {x: -290, y: -46, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-menu': {x: -192, y: -24, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
@@ -162,6 +165,8 @@ UI.Icon.Descriptors = {
   'largeicon-visibility': {x: -96, y: 0, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-refresh': {x: 0, y: 0, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-dock-to-right': {x: -256, y: -48, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
+  'largeicon-dock-to-left':
+      {x: -256, y: -48, width: 28, height: 24, spritesheet: 'largeicons', isMask: true, transform: 'rotate(180deg)'},
   'largeicon-dock-to-bottom': {x: -32, y: -24, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-undock': {x: 0, y: -48, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-settings-gear': {x: -288, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
@@ -169,9 +174,9 @@ UI.Icon.Descriptors = {
   'largeicon-show-left-sidebar': {x: -160, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-hide-left-sidebar': {x: -192, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-show-right-sidebar':
-      {x: -160, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true, transform: 'rotate(180deg)'},
+      {x: -160, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true, transform: 'scaleX(-1)'},
   'largeicon-hide-right-sidebar':
-      {x: -192, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true, transform: 'rotate(180deg)'},
+      {x: -192, y: -72, width: 28, height: 24, spritesheet: 'largeicons', isMask: true, transform: 'scaleX(-1)'},
   'largeicon-show-top-sidebar': {
     x: -160,
     y: -72,
@@ -216,4 +221,6 @@ UI.Icon.Descriptors = {
   'largeicon-navigator-frame': {x: -256, y: -144, width: 32, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-navigator-worker': {x: -320, y: -144, width: 32, height: 24, spritesheet: 'largeicons', isMask: true},
   'largeicon-navigator-snippet': {x: -224, y: -96, width: 32, height: 24, spritesheet: 'largeicons', isMask: true},
+  'largeicon-edit': {x: -160, y: -0, width: 28, height: 24, spritesheet: 'largeicons'},
+  'largeicon-chevron': {x: -68, y: -143, width: 24, height: 26, spritesheet: 'largeicons', isMask: true},
 };

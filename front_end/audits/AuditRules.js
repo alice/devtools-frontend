@@ -599,7 +599,7 @@ Audits.AuditRules.CacheControlRule = class extends Audits.AuditRule {
     var urls = [];
     for (var i = 0; i < requestCount; ++i) {
       if (requestCheckFunction.call(this, requests[i]))
-        urls.push(requests[i].url);
+        urls.push(requests[i].url());
     }
     if (urls.length) {
       var entry = result.addChild(messageText, true);
@@ -743,7 +743,7 @@ Audits.AuditRules.BrowserCacheControlRule = class extends Audits.AuditRules.Cach
           true);
       result.violationCount += requests.length;
       for (var i = 0; i < requests.length; ++i)
-        entry.addURL(requests[i].url);
+        entry.addURL(requests[i].url());
     }
   }
 
@@ -1314,7 +1314,8 @@ Audits.AuditRules.CookieRuleBase = class extends Audits.AuditRule {
       callback(result);
     }
 
-    SDK.Cookies.getCookiesAsync(resultCallback);
+    const nonDataUrls = requests.map(r => r.url()).filter(url => url && url.asParsedURL());
+    SDK.Cookies.getCookiesAsync(target, nonDataUrls, resultCallback);
   }
 
   mapResourceCookies(requestsByDomain, allCookies, callback) {
@@ -1330,7 +1331,7 @@ Audits.AuditRules.CookieRuleBase = class extends Audits.AuditRule {
     if (!requests)
       return;
     for (var i = 0; i < requests.length; ++i) {
-      if (SDK.Cookies.cookieMatchesResourceURL(cookie, requests[i].url))
+      if (SDK.Cookies.cookieMatchesResourceURL(cookie, requests[i].url()))
         callback(requests[i], cookie);
     }
   }

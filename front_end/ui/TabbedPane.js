@@ -333,6 +333,18 @@ UI.TabbedPane = class extends UI.VBox {
     return true;
   }
 
+  selectNextTab() {
+    var index = this._tabs.indexOf(this._currentTab);
+    var nextIndex = mod(index + 1, this._tabs.length);
+    this.selectTab(this._tabs[nextIndex].id, true);
+  }
+
+  selectPrevTab() {
+    var index = this._tabs.indexOf(this._currentTab);
+    var nextIndex = mod(index - 1, this._tabs.length);
+    this.selectTab(this._tabs[nextIndex].id, true);
+  }
+
   /**
    * @param {number} tabsCount
    * @return {!Array.<string>}
@@ -523,7 +535,8 @@ UI.TabbedPane = class extends UI.VBox {
 
   _createDropDownButton() {
     var dropDownContainer = createElementWithClass('div', 'tabbed-pane-header-tabs-drop-down-container');
-    dropDownContainer.createChild('div', 'glyph');
+    var chevronIcon = UI.Icon.create('largeicon-chevron', 'chevron-icon');
+    dropDownContainer.appendChild(chevronIcon);
     this._dropDownMenu = new UI.DropDownMenu(dropDownContainer);
     this._dropDownMenu.addEventListener(UI.DropDownMenu.Events.ItemSelected, this._dropDownMenuItemSelected, this);
 

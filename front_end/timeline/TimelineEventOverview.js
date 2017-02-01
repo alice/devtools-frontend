@@ -157,70 +157,29 @@ Timeline.TimelineEventOverviewNetwork = class extends Timeline.TimelineEventOver
    */
   update() {
     super.update();
-    var height = this.height();
-    var numBands = categoryBand(Timeline.TimelineUIUtils.NetworkCategory.Other) + 1;
-    var bandHeight = Math.floor(height / numBands);
-    var devicePixelRatio = window.devicePixelRatio;
+    var bandHeight = this.height() / 2;
     var timeOffset = this._model.minimumRecordTime();
     var timeSpan = this._model.maximumRecordTime() - timeOffset;
     var canvasWidth = this.width();
     var scale = canvasWidth / timeSpan;
-    var ctx = this.context();
-    var requests = this._model.networkRequests();
-    /** @type {!Map<string,!{waiting:!Path2D,transfer:!Path2D}>} */
-    var paths = new Map();
-    requests.forEach(drawRequest);
-    for (var path of paths) {
-      ctx.fillStyle = path[0];
-      ctx.globalAlpha = 0.3;
-      ctx.fill(path[1]['waiting']);
-      ctx.globalAlpha = 1;
-      ctx.fill(path[1]['transfer']);
-    }
-
-    /**
-     * @param {!Timeline.TimelineUIUtils.NetworkCategory} category
-     * @return {number}
-     */
-    function categoryBand(category) {
-      var categories = Timeline.TimelineUIUtils.NetworkCategory;
-      switch (category) {
-        case categories.HTML:
-          return 0;
-        case categories.Script:
-          return 1;
-        case categories.Style:
-          return 2;
-        case categories.Media:
-          return 3;
-        default:
-          return 4;
-      }
-    }
-
-    /**
-     * @param {!TimelineModel.TimelineModel.NetworkRequest} request
-     */
-    function drawRequest(request) {
-      var tickWidth = 2 * devicePixelRatio;
-      var category = Timeline.TimelineUIUtils.networkRequestCategory(request);
-      var style = Timeline.TimelineUIUtils.networkCategoryColor(category);
-      var band = categoryBand(category);
-      var y = band * bandHeight;
-      var path = paths.get(style);
-      if (!path) {
-        path = {waiting: new Path2D(), transfer: new Path2D()};
-        paths.set(style, path);
-      }
+    var highPath = new Path2D();
+    var lowPath = new Path2D();
+    var priorities = Protocol.Network.ResourcePriority;
+    var highPrioritySet = new Set([priorities.VeryHigh, priorities.High, priorities.Medium]);
+    for (var request of this._model.networkRequests()) {
+      var path = highPrioritySet.has(request.priority) ? highPath : lowPath;
       var s = Math.max(Math.floor((request.startTime - timeOffset) * scale), 0);
-      var e = Math.min(Math.ceil((request.endTime - timeOffset) * scale), canvasWidth);
-      path['waiting'].rect(s, y, e - s, bandHeight - 1);
-      path['transfer'].rect(e - tickWidth / 2, y, tickWidth, bandHeight - 1);
-      if (!request.responseTime)
-        return;
-      var r = Math.ceil((request.responseTime - timeOffset) * scale);
-      path['transfer'].rect(r - tickWidth / 2, y, tickWidth, bandHeight - 1);
+      var e = Math.min(Math.ceil((request.endTime - timeOffset) * scale + 1), canvasWidth);
+      path.rect(s, 0, e - s, bandHeight - 1);
     }
+    var ctx = this.context();
+    ctx.save();
+    ctx.fillStyle = 'hsl(214, 60%, 60%)';
+    ctx.fill(/** @type {?} */ (highPath));
+    ctx.translate(0, bandHeight);
+    ctx.fillStyle = 'hsl(214, 80%, 80%)';
+    ctx.fill(/** @type {?} */ (lowPath));
+    ctx.restore();
   }
 };
 

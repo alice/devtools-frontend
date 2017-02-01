@@ -228,8 +228,7 @@ Console.ConsoleViewMessage = class {
     } else if (consoleMessage.source === SDK.ConsoleMessage.MessageSource.Network) {
       if (consoleMessage.request) {
         messageElement = createElement('span');
-        if (consoleMessage.level === SDK.ConsoleMessage.MessageLevel.Error ||
-            consoleMessage.level === SDK.ConsoleMessage.MessageLevel.RevokedError) {
+        if (consoleMessage.level === SDK.ConsoleMessage.MessageLevel.Error) {
           messageElement.createTextChild(consoleMessage.request.requestMethod + ' ');
           messageElement.appendChild(Components.Linkifier.linkifyRevealable(
               consoleMessage.request, consoleMessage.request.url(), consoleMessage.request.url()));
@@ -250,6 +249,10 @@ Console.ConsoleViewMessage = class {
     } else {
       if (consoleMessage.source === SDK.ConsoleMessage.MessageSource.Violation)
         messageText = Common.UIString('[Violation] %s', messageText);
+      else if (consoleMessage.source === SDK.ConsoleMessage.MessageSource.Intervention)
+        messageText = Common.UIString('[Intervention] %s', messageText);
+      if (consoleMessage.source === SDK.ConsoleMessage.MessageSource.Deprecation)
+        messageText = Common.UIString('[Deprecation] %s', messageText);
       var args = consoleMessage.parameters || [messageText];
       messageElement = this._format(args);
     }
@@ -331,7 +334,7 @@ Console.ConsoleViewMessage = class {
      * @param {boolean} expand
      */
     function expandStackTrace(expand) {
-      icon.setIconType(expand ? 'smallicon-triangle-bottom' : 'smallicon-triangle-right');
+      icon.setIconType(expand ? 'smallicon-triangle-down' : 'smallicon-triangle-right');
       stackTraceElement.classList.toggle('hidden', !expand);
     }
 
@@ -426,8 +429,7 @@ Console.ConsoleViewMessage = class {
     var shouldFormatMessage =
         SDK.RemoteObject.type((/** @type {!Array.<!SDK.RemoteObject>} **/ (parameters))[0]) === 'string' &&
         (this._message.type !== SDK.ConsoleMessage.MessageType.Result ||
-         this._message.level === SDK.ConsoleMessage.MessageLevel.Error ||
-         this._message.level === SDK.ConsoleMessage.MessageLevel.RevokedError);
+         this._message.level === SDK.ConsoleMessage.MessageLevel.Error);
 
     // Multiple parameters with the first being a format string. Save unused substitutions.
     if (shouldFormatMessage) {
@@ -528,7 +530,7 @@ Console.ConsoleViewMessage = class {
     var titleElement = createElement('span');
     if (includePreview && obj.preview) {
       titleElement.classList.add('console-object-preview');
-      this._previewFormatter.appendObjectPreview(titleElement, obj.preview);
+      this._previewFormatter.appendObjectPreview(titleElement, obj.preview, false /* isEntry */);
     } else if (obj.type === 'function') {
       Components.ObjectPropertiesSection.formatObjectAsFunction(obj, titleElement, false);
       titleElement.classList.add('object-value-function');
@@ -815,23 +817,47 @@ Console.ConsoleViewMessage = class {
     return regexObject.test(text);
   }
 
-  /**
-   * @param {boolean} show
-   */
-  updateTimestamp(show) {
+  updateTimestamp() {
     if (!this._contentElement)
       return;
 
-    if (show && !this.timestampElement) {
-      this.timestampElement = createElementWithClass('span', 'console-timestamp');
-      this.timestampElement.textContent = (new Date(this._message.timestamp)).toConsoleTime() + ' ';
-      this._contentElement.insertBefore(this.timestampElement, this._contentElement.firstChild);
-      return;
+    var format = Common.moduleSetting('consoleTimestampFormat').get();
+    if (format !== Console.ConsoleViewMessage.TimestampFormat.None) {
+      var timestampText = formatTimestamp(this._message.timestamp, format);
+      if (!this._timestampElement)
+        this._timestampElement = createElementWithClass('span', 'console-timestamp');
+      this._timestampElement.textContent = timestampText + ' ';
+      this._timestampElement.title = timestampText;
+      this._contentElement.insertBefore(this._timestampElement, this._contentElement.firstChild);
+    } else if (this._timestampElement) {
+      this._timestampElement.remove();
+      delete this._timestampElement;
     }
 
-    if (!show && this.timestampElement) {
-      this.timestampElement.remove();
-      delete this.timestampElement;
+    /**
+     * @param {number} timestamp
+     * @param {!Console.ConsoleViewMessage.TimestampFormat} format
+     * @return {string}
+     */
+    function formatTimestamp(timestamp, format) {
+      var date = new Date(timestamp);
+      var yymmdd = date.getFullYear() + '-' + leadZero(date.getMonth() + 1, 2) + '-' + leadZero(date.getDate(), 2);
+      var hhmmssfff = leadZero(date.getHours(), 2) + ':' + leadZero(date.getMinutes(), 2) + ':' +
+          leadZero(date.getSeconds(), 2) + '.' + leadZero(date.getMilliseconds(), 3);
+      if (format === Console.ConsoleViewMessage.TimestampFormat.Full)
+        return yymmdd + ' ' + hhmmssfff;
+      return hhmmssfff;
+
+      /**
+       * @param {number} value
+       * @param {number} length
+       * @return {string}
+       */
+      function leadZero(value, length) {
+        var valueString = value.toString();
+        var padding = length - valueString.length;
+        return padding <= 0 ? valueString : '0'.repeat(padding) + valueString;
+      }
     }
   }
 
@@ -884,7 +910,6 @@ Console.ConsoleViewMessage = class {
     var shouldIncludeTrace =
         !!consoleMessage.stackTrace && (consoleMessage.source === SDK.ConsoleMessage.MessageSource.Network ||
                                         consoleMessage.level === SDK.ConsoleMessage.MessageLevel.Error ||
-                                        consoleMessage.level === SDK.ConsoleMessage.MessageLevel.RevokedError ||
                                         consoleMessage.type === SDK.ConsoleMessage.MessageType.Trace ||
                                         consoleMessage.level === SDK.ConsoleMessage.MessageLevel.Warning);
     if (target && shouldIncludeTrace)
@@ -895,7 +920,7 @@ Console.ConsoleViewMessage = class {
       formattedMessage = this._buildMessage(consoleMessage);
     contentElement.appendChild(formattedMessage);
 
-    this.updateTimestamp(Common.moduleSetting('consoleTimestampsEnabled').get());
+    this.updateTimestamp();
     return this._contentElement;
   }
 
@@ -925,13 +950,12 @@ Console.ConsoleViewMessage = class {
     this._element.message = this;
 
     switch (this._message.level) {
-      case SDK.ConsoleMessage.MessageLevel.Log:
-        this._element.classList.add('console-log-level');
+      case SDK.ConsoleMessage.MessageLevel.Verbose:
+        this._element.classList.add('console-verbose-level');
         this._updateMessageLevelIcon('');
         break;
-      case SDK.ConsoleMessage.MessageLevel.Debug:
-        this._element.classList.add('console-debug-level');
-        this._updateMessageLevelIcon('');
+      case SDK.ConsoleMessage.MessageLevel.Info:
+        this._element.classList.add('console-info-level');
         break;
       case SDK.ConsoleMessage.MessageLevel.Warning:
         this._element.classList.add('console-warning-level');
@@ -941,14 +965,18 @@ Console.ConsoleViewMessage = class {
         this._element.classList.add('console-error-level');
         this._updateMessageLevelIcon('smallicon-error');
         break;
-      case SDK.ConsoleMessage.MessageLevel.RevokedError:
-        this._element.classList.add('console-revokedError-level');
-        this._updateMessageLevelIcon('smallicon-revoked-error');
-        break;
-      case SDK.ConsoleMessage.MessageLevel.Info:
-        this._element.classList.add('console-info-level');
-        this._updateMessageLevelIcon('smallicon-info');
-        break;
+    }
+
+    // Render verbose and info deprecations, interventions and violations with warning background.
+    if (this._message.level === SDK.ConsoleMessage.MessageLevel.Verbose ||
+        this._message.level === SDK.ConsoleMessage.MessageLevel.Info) {
+      switch (this._message.source) {
+        case SDK.ConsoleMessage.MessageSource.Violation:
+        case SDK.ConsoleMessage.MessageSource.Deprecation:
+        case SDK.ConsoleMessage.MessageSource.Intervention:
+          this._element.classList.add('console-warning-level');
+          break;
+      }
     }
 
     this._element.appendChild(this.contentElement());
@@ -983,6 +1011,8 @@ Console.ConsoleViewMessage = class {
       return;
 
     this._repeatCountElement.remove();
+    if (this._contentElement)
+      this._contentElement.classList.remove('repeated-message');
     delete this._repeatCountElement;
   }
 
@@ -1004,8 +1034,8 @@ Console.ConsoleViewMessage = class {
         case SDK.ConsoleMessage.MessageLevel.Error:
           this._repeatCountElement.type = 'error';
           break;
-        case SDK.ConsoleMessage.MessageLevel.Debug:
-          this._repeatCountElement.type = 'debug';
+        case SDK.ConsoleMessage.MessageLevel.Verbose:
+          this._repeatCountElement.type = 'verbose';
           break;
         default:
           this._repeatCountElement.type = 'info';
@@ -1169,6 +1199,15 @@ Console.ConsoleViewMessage = class {
 };
 
 /**
+ * @enum {string}
+ */
+Console.ConsoleViewMessage.TimestampFormat = {
+  None: 'none',
+  Full: 'full',
+  Short: 'short'
+};
+
+/**
  * @unrestricted
  */
 Console.ConsoleGroupViewMessage = class extends Console.ConsoleViewMessage {
@@ -1191,7 +1230,7 @@ Console.ConsoleGroupViewMessage = class extends Console.ConsoleViewMessage {
   setCollapsed(collapsed) {
     this._collapsed = collapsed;
     if (this._expandGroupIcon)
-      this._expandGroupIcon.setIconType(this._collapsed ? 'smallicon-triangle-right' : 'smallicon-triangle-bottom');
+      this._expandGroupIcon.setIconType(this._collapsed ? 'smallicon-triangle-right' : 'smallicon-triangle-down');
   }
 
   /**
